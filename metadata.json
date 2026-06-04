@@ -1,0 +1,6 @@
+{
+  "name": "Generatore di Sfide VS",
+  "description": "Un gioco di sfide in cui personaggi storici, della cultura pop e animali si scontrano in terreni insoliti con equipaggiamenti bizzarri estratti da Wikipedia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
