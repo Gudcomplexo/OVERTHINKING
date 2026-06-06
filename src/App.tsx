@@ -16,11 +16,10 @@ import {
   MapPin, 
   BookmarkCheck,
   ShieldAlert,
-  Search,
-  Shuffle
+  Search
 } from 'lucide-react';
-import { Contender, Equipment, Terrain, Language } from './types';
-import { translations, questions, poolContenders, poolTerrains, poolEquipment } from './data';
+import { Contender, Equipment, Terrain, Language, GameMode, BattleHistoryItem } from './types';
+import { translations, questions, poolContenders, poolTerrains, poolEquipment, poolCategories } from './data';
 
 // Custom helper: stable background/API fetcher for Wikipedia
 const fetchWikiData = async (title: string, fallbackTitle: string | null, lang: Language) => {
@@ -94,7 +93,18 @@ export default function App() {
   const [includeTerrain, setIncludeTerrain] = useState<boolean>(true);
   const [includeEquipment, setIncludeEquipment] = useState<boolean>(true);
   const [equipmentCount, setEquipmentCount] = useState<number>(1);
-  const [totalRandomizer, setTotalRandomizer] = useState<boolean>(false);
+  const [gameMode, setGameMode] = useState<GameMode>('controlled');
+  const [preserveProportions, setPreserveProportions] = useState<boolean>(true);
+  const [history, setHistory] = useState<BattleHistoryItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('vs_battle_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const totalRandomizer = gameMode === 'total_randomizer';
   
   const [question, setQuestion] = useState<string>("Chi vincerebbe in uno scontro diretto?");
   const [isEditingQuestion, setIsEditingQuestion] = useState<boolean>(false);
@@ -107,85 +117,6 @@ export default function App() {
   const [contenders, setContenders] = useState<Contender[]>([]);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [gameState, setGameState] = useState<'idle' | 'loading' | 'active'>('idle');
-
-  const [aiWinnerId, setAiWinnerId] = useState<string | null>(null);
-  const [aiMotivation, setAiMotivation] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState<boolean>(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
-  const clearAiVerdict = () => {
-    setAiWinnerId(null);
-    setAiMotivation(null);
-    setAiError(null);
-  };
-
-  const handleRandomizeQuestion = () => {
-    clearAiVerdict();
-    const list = questions[language];
-    const candidates = list.filter(q => q !== question);
-    const activeList = candidates.length > 0 ? candidates : list;
-    const randQ = activeList[Math.floor(Math.random() * activeList.length)];
-    setQuestion(randQ);
-  };
-
-  const handleAiDecree = async () => {
-    if (contenders.length < 2 || aiLoading) return;
-    setAiLoading(true);
-    setAiError(null);
-    setAiWinnerId(null);
-    setAiMotivation(null);
-
-    try {
-      const response = await fetch("/api/gemini/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contenders: contenders.map(c => ({
-            id: c.id,
-            title: c.title,
-            description: c.description,
-            notes: c.notes,
-            equipment: c.equipment.map(eq => ({
-              title: eq.title,
-              description: eq.description,
-            })),
-          })),
-          terrain: includeTerrain && terrain ? {
-            title: terrain.title,
-            description: terrain.description,
-          } : null,
-          question,
-          language,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Failed to analyze the battle.");
-      }
-
-      const data = await response.json();
-      if (data.winnerId) {
-        setAiWinnerId(data.winnerId);
-        setAiMotivation(data.motivation);
-        
-        // Match winner ID or contender title to designate the winner!
-        setContenders(prev => prev.map(c => ({
-          ...c,
-          isWinner: c.id === data.winnerId,
-        })));
-      } else {
-        throw new Error("No winner declared by AI.");
-      }
-    } catch (err: any) {
-      console.error("AI decree error:", err);
-      setAiError(err.message || "Qualcosa è andato storto.");
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
   const t = translations[language];
 
@@ -288,10 +219,10 @@ export default function App() {
     return popped;
   }, [replenishCache]);
 
-  // Warm search pool cache
+  // Warm search pools cache
   useEffect(() => {
     replenishCache(language);
-  }, [language, totalRandomizer, replenishCache]);
+  }, [language, replenishCache]);
 
   // Instantly translates everything when the user switches languages
   useEffect(() => {
@@ -378,14 +309,18 @@ export default function App() {
     }
   }, [language]);
 
+  // Randomize only the current active question
+  const randomizeQuestion = () => {
+    const list = questions[language];
+    const randQ = list[Math.floor(Math.random() * list.length)];
+    setQuestion(randQ);
+  };
+
   // Generate a brand new challenge from scratch
   const startNewChallenge = async () => {
     setGameState('loading');
     setContenders([]);
     setTerrain(null);
-    setAiWinnerId(null);
-    setAiMotivation(null);
-    setAiError(null);
 
     // 1. Pick a random question
     const list = questions[language];
@@ -613,7 +548,6 @@ export default function App() {
   // Add an extra contender on demand
   const addExtraContender = async () => {
     const newId = (contenders.length + 1).toString();
-    clearAiVerdict();
     
     if (totalRandomizer) {
       // Push skeleton
@@ -707,7 +641,6 @@ export default function App() {
   // Individual Reroll: Contender
   const rerollContender = async (id: string) => {
     setContenders(prev => prev.map(c => c.id === id ? { ...c, isLoading: true } : c));
-    clearAiVerdict();
     
     if (totalRandomizer) {
       try {
@@ -773,7 +706,6 @@ export default function App() {
 
   // Individual Reroll: Equipment
   const rerollEquipmentItem = async (contenderId: string, itemId: string) => {
-    clearAiVerdict();
     // Put item in loading state
     setContenders(prev => prev.map(c => {
       if (c.id === contenderId) {
@@ -860,7 +792,25 @@ export default function App() {
     const winnerContender = currentContenders.find(c => c.id === id);
     if (!winnerContender) return;
 
-    clearAiVerdict();
+    // Record victory to history
+    const winnerName = winnerContender.title || winnerContender.key || "Unknown";
+    const statusOfLosers = currentContenders
+      .filter(c => c.id !== id)
+      .map(c => c.title || c.key || "Unknown");
+
+    const newHistoryItem: BattleHistoryItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      question,
+      winner: winnerName,
+      losers: statusOfLosers,
+      timestamp: new Date().toLocaleTimeString(language === 'it' ? 'it-IT' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
+
+    setHistory(prev => {
+      const updated = [newHistoryItem, ...prev];
+      localStorage.setItem('vs_battle_history', JSON.stringify(updated));
+      return updated;
+    });
 
     const challengerIds = currentContenders.filter(c => c.id !== id).map(c => c.id);
 
@@ -1009,7 +959,6 @@ export default function App() {
   const rerollTerrain = async () => {
     if (!includeTerrain || terrainLoading) return;
     setTerrainLoading(true);
-    clearAiVerdict();
     
     if (totalRandomizer) {
       try {
@@ -1063,13 +1012,9 @@ export default function App() {
     setIncludeTerrain(true);
     setIncludeEquipment(true);
     setEquipmentCount(1);
-    setTotalRandomizer(false);
+    setGameMode('controlled');
     setQuestion("Chi vincerebbe in uno scontro diretto?");
     setIsEditingQuestion(false);
-    setAiWinnerId(null);
-    setAiMotivation(null);
-    setAiLoading(false);
-    setAiError(null);
   };
 
   return (
@@ -1084,15 +1029,15 @@ export default function App() {
       
       {/* Immersive blurred background reflecting the active terrain */}
       <div 
-        className="fixed inset-0 z-0 bg-cover bg-center transition-all duration-1000 ease-in-out pointer-events-none opacity-40 scale-105"
+        className="fixed inset-0 z-0 bg-cover bg-center transition-all duration-1000 ease-in-out pointer-events-none opacity-50 scale-105"
         style={{ 
           backgroundImage: terrain?.image ? `url(${terrain.image})` : 'none',
-          filter: 'blur(35px)'
+          filter: 'blur(7px)'
         }} 
       />
       
       {/* Backdrop dark contrast filter cover */}
-      <div className="fixed inset-0 z-0 bg-slate-950/70 pointer-events-none" />
+      <div className="fixed inset-0 z-0 bg-slate-950/75 pointer-events-none" />
 
       {/* Language Switch Rail Badge */}
       <div className="relative z-10 w-full max-w-6xl flex justify-between items-center mb-6">
@@ -1134,10 +1079,47 @@ export default function App() {
       <div className="relative z-10 w-full max-w-4xl bg-slate-900/30 border border-slate-800/60 rounded-3xl p-6 mb-8 shadow-2xl backdrop-blur-md">
         <div className="flex items-center gap-2 mb-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
           <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Configurazione Regole Sfida</span>
+          <span>{t.selectModeLabel}</span>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        {/* Game Mode Segmented Switcher */}
+        <div className="mb-6 bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-1.5">
+          <button
+            id="mode-controlled-btn"
+            onClick={() => setGameMode('controlled')}
+            className={`py-3 px-4 rounded-xl text-center cursor-pointer transition-all duration-300 ${
+              gameMode === 'controlled'
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-heavy shadow-md shadow-indigo-650/45 border-t border-indigo-400/25'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-905/30'
+            }`}
+          >
+            <div className="font-extrabold text-xs md:text-sm flex items-center justify-center gap-1.5">
+              <span>🛡️</span> {t.modeControlled}
+            </div>
+            <div className="text-[10.5px] text-slate-400 mt-1 max-md:hidden leading-normal">
+              {t.descControlled}
+            </div>
+          </button>
+
+          <button
+            id="mode-total-randomizer-btn"
+            onClick={() => setGameMode('total_randomizer')}
+            className={`py-3 px-4 rounded-xl text-center cursor-pointer transition-all duration-300 ${
+              gameMode === 'total_randomizer'
+                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white font-heavy shadow-md shadow-amber-650/45 border-t border-amber-400/25'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-905/30'
+            }`}
+          >
+            <div className="font-extrabold text-xs md:text-sm flex items-center justify-center gap-1.5">
+              <span>🌪️</span> {t.modeTotalRandomizer}
+            </div>
+            <div className="text-[10.5px] text-slate-400 mt-1 max-md:hidden leading-normal">
+              {t.descTotalRandomizer}
+            </div>
+          </button>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-4 border-t border-slate-800/40">
           {/* Options grid */}
           <div className="flex flex-wrap items-center gap-6">
             <label className="flex items-center gap-3 cursor-pointer group text-slate-300 select-none hover:text-white transition-colors">
@@ -1197,20 +1179,15 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-4 border-l border-slate-800 pl-6">
-              <label 
-                className="flex items-center gap-3 cursor-pointer group text-slate-300 select-none hover:text-white transition-colors"
-                title={t.randomizerTooltip}
-              >
+              <label className="flex items-center gap-3 cursor-pointer group text-slate-300 select-none hover:text-white transition-colors">
                 <input 
-                  id="toggle-randomizer-cb"
+                  id="toggle-preserve-proportions-cb"
                   type="checkbox" 
-                  checked={totalRandomizer}
-                  onChange={(e) => setTotalRandomizer(e.target.checked)}
-                  className="w-5 h-5 rounded-md border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 default-focus accent-amber-500 cursor-pointer"
+                  checked={preserveProportions}
+                  onChange={(e) => setPreserveProportions(e.target.checked)}
+                  className="w-5 h-5 rounded-md border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 accent-indigo-500 cursor-pointer"
                 />
-                <span className="text-sm font-semibold flex items-center gap-1">
-                  {t.toggleRandomizer}
-                </span>
+                <span className="text-sm font-semibold flex items-center gap-1.5">🖼️ {language === 'it' ? 'Mantieni Proporzioni' : 'Preserve Proportions'}</span>
               </label>
             </div>
           </div>
@@ -1225,27 +1202,6 @@ export default function App() {
               <Dices className="w-4 h-4 text-indigo-200" />
               <span>{t.btnGenerate}</span>
             </button>
-
-            {gameState === 'active' && (
-              <button 
-                id="ai-decree-btn"
-                onClick={handleAiDecree}
-                disabled={aiLoading || contenders.some(c => c.isLoading)}
-                className="relative overflow-hidden flex items-center justify-center gap-2 max-md:w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 disabled:from-slate-800 disabled:to-slate-800 text-white disabled:text-slate-500 font-extrabold text-sm py-3 px-5 rounded-xl hover:shadow-lg hover:shadow-amber-500/10 active:translate-y-0.5 cursor-pointer transition-all duration-200 shadow-md border border-amber-500/10 disabled:border-transparent"
-              >
-                {aiLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 text-amber-200 animate-spin" />
-                    <span>{t.aiWinnerLoading}</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-200 animate-pulse" />
-                    <span>{t.btnAiWinner}</span>
-                  </>
-                )}
-              </button>
-            )}
 
             <button 
               id="add-contender-btn"
@@ -1274,38 +1230,36 @@ export default function App() {
           
           {/* Main Battle Challenge Question Container */}
           <div className="w-full flex justify-center mb-8 px-2">
-            <div className="w-full max-w-2xl bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 text-center backdrop-blur-sm shadow-xl relative group">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-700/30 pb-2">
-                <div className="text-[10px] text-indigo-400/80 uppercase tracking-[0.2em] font-black">
-                  {language === 'it' ? 'DOMANDA DI CONFRONTO' : 'COMPARISON QUESTION'}
-                </div>
-                {!isEditingQuestion && (
-                  <button
-                    id="randomize-question-btn"
-                    onClick={handleRandomizeQuestion}
-                    title={t.randomQuestionTooltip}
-                    className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-extrabold text-indigo-400 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-md transition-all duration-150 cursor-pointer border border-indigo-400/20"
-                  >
-                    <Shuffle className="w-3 h-3 text-indigo-400" />
-                    <span>{t.btnRandomQuestion}</span>
-                  </button>
-                )}
+            <div className="w-full max-w-2xl bg-slate-900 border-2 border-indigo-505 rounded-3xl p-6 text-center backdrop-blur-md shadow-2xl relative shadow-indigo-500/10">
+              <div className="text-[10px] text-indigo-400 uppercase tracking-[0.2em] mb-3 font-black">
+                {language === 'it' ? 'DOMANDA DI CONFRONTO ⚔️' : 'COMPARISON QUESTION ⚔️'}
               </div>
               <AnimatePresence mode="wait">
                 {!isEditingQuestion ? (
-                  <motion.p 
-                    id="displayed-question"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    onClick={() => {
-                      setCustomQuestionInput(question);
-                      setIsEditingQuestion(true);
-                    }}
-                    className="text-xl font-extrabold text-slate-100 hover:text-indigo-300 cursor-text transition-colors"
-                  >
-                    "{question}"
-                  </motion.p>
+                  <div className="flex flex-col items-center gap-3.5">
+                    <motion.p 
+                      id="displayed-question"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      onClick={() => {
+                        setCustomQuestionInput(question);
+                        setIsEditingQuestion(true);
+                      }}
+                      className="text-xl md:text-2xl font-black text-slate-100 hover:text-indigo-300 cursor-text leading-snug transition-colors"
+                    >
+                      "{question}"
+                    </motion.p>
+                    
+                    <button
+                      id="randomize-curr-question-btn"
+                      onClick={randomizeQuestion}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-650 hover:bg-indigo-555 text-white rounded-xl text-xs font-black transition-all duration-200 cursor-pointer shadow-md shadow-indigo-950/40 border border-indigo-400/25 active:scale-[0.97]"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 animate-once" />
+                      <span>{language === 'it' ? 'Domanda Casuale 🎲' : 'Random Question 🎲'}</span>
+                    </button>
+                  </div>
                 ) : (
                   <motion.div 
                     initial={{ scale: 0.95, opacity: 0 }}
@@ -1324,7 +1278,7 @@ export default function App() {
                           setIsEditingQuestion(false);
                         }
                       }}
-                      className="bg-slate-900 border border-indigo-500 rounded-xl px-4 py-1.5 text-base font-medium text-white outline-none focus:ring-2 focus:ring-indigo-500/20 text-center w-full max-w-md"
+                      className="bg-slate-950 border-2 border-indigo-500 rounded-xl px-4 py-2 text-base font-semibold text-white outline-none focus:ring-4 focus:ring-indigo-500/20 text-center w-full max-w-md"
                       autoFocus
                     />
                     <button 
@@ -1333,73 +1287,18 @@ export default function App() {
                         if (customQuestionInput.trim()) setQuestion(customQuestionInput);
                         setIsEditingQuestion(false);
                       }}
-                      className="bg-indigo-600 text-white font-bold rounded-xl px-3.5 py-1.5 hover:bg-indigo-500 text-xs transition-colors shrink-0"
+                      className="bg-indigo-600 text-white font-bold rounded-xl px-3.5 py-2 hover:bg-indigo-500 text-xs transition-colors shrink-0"
                     >
                       <BookmarkCheck className="w-4 h-4" />
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
-              <div id="edit-hint-label" className="text-[10px] text-slate-500 mt-2 italic">
+              <div id="edit-hint-label" className="text-[10px] text-slate-500 mt-3.5 italic">
                 {t.editHint}
               </div>
             </div>
           </div>
-
-          {/* AI Verdict section */}
-          <AnimatePresence>
-            {(aiLoading || aiWinnerId || aiError) && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="w-full max-w-2xl mb-8 px-2"
-              >
-                <div className="relative overflow-hidden bg-gradient-to-br from-amber-950/20 via-slate-900/90 to-amber-950/10 border border-amber-500/40 rounded-2xl p-6 shadow-2xl backdrop-blur-md">
-                  {/* Decorative glowing backdrops */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl" />
-                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl" />
-
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
-                    <span className="text-xs font-black uppercase tracking-widest text-amber-400">
-                      {t.aiExplainTitle}
-                    </span>
-                  </div>
-
-                  {aiLoading ? (
-                    <div className="flex items-center gap-3 py-4 text-slate-300">
-                      <RefreshCw className="w-5 h-5 text-amber-500 animate-spin" />
-                      <p className="text-sm font-semibold tracking-wide animate-pulse">
-                        {t.aiWinnerLoading}
-                      </p>
-                    </div>
-                  ) : aiError ? (
-                    <div className="flex items-center gap-3 py-3 text-red-400">
-                      <ShieldAlert className="w-5 h-5 shrink-0" />
-                      <p className="text-sm font-semibold">{aiError}</p>
-                    </div>
-                  ) : (
-                    <div>
-                      {aiWinnerId && (
-                        <div className="mb-2 text-xs font-medium text-slate-400">
-                          {language === 'it' 
-                            ? `Combattante decretato vincitore dall'I.A.:` 
-                            : `Fighter decreed as winner by A.I.:`}{' '}
-                          <span className="text-amber-400 font-extrabold uppercase">
-                            {contenders.find(c => c.id === aiWinnerId)?.title || `Contendente #${aiWinnerId}`}
-                          </span>
-                        </div>
-                      )}
-                      <p className="text-base font-medium text-amber-200/90 leading-relaxed italic">
-                        "{aiMotivation}"
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Terrain Card Display Component */}
           {includeTerrain && (
@@ -1468,6 +1367,24 @@ export default function App() {
               )}
             </div>
           )}
+
+          {/* Quick Aspect Ratio Proportion Control */}
+          <div className="w-full max-w-7xl mx-auto flex justify-end mb-4 px-2">
+            <button
+              id="instant-toggle-proportions-btn"
+              onClick={() => setPreserveProportions(!preserveProportions)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 border-2 border-slate-800 hover:border-indigo-505 bg-slate-900/90 text-xs font-extrabold rounded-2xl cursor-pointer shadow-lg active:scale-95 transition-all text-slate-300 hover:text-white"
+              title={language === 'it' ? 'Rimpicciolisci o mantieni proporzioni originali' : 'Shrink/Crop images or maintain original dimensions'}
+            >
+              <span>{preserveProportions ? '🔍' : '🖼️'}</span>
+              <span>
+                {preserveProportions 
+                  ? (language === 'it' ? 'Rimpicciolisci Immagini (Come Prima)' : 'Shrink/Crop Images (Zoom-to-fill)')
+                  : (language === 'it' ? 'Mantieni Proporzioni Originali' : 'Preserve Aspect Ratios')
+                }
+              </span>
+            </button>
+          </div>
 
           {/* Grid of contenders */}
           <div 
@@ -1555,11 +1472,13 @@ export default function App() {
                       </div>
 
                       {/* Character image representation - Enlarged height */}
-                      <div className="h-64 bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl overflow-hidden relative border border-white/10 mb-4 shrink-0 shadow-inner group">
+                      <div className="h-64 bg-slate-950 rounded-2xl overflow-hidden relative border border-white/10 mb-4 shrink-0 shadow-inner group flex items-center justify-center">
                         <img 
                           src={contender.image} 
                           alt={contender.title} 
-                          className="w-full h-full object-cover transform scale-100 group-hover:scale-105 duration-500 ease-out"
+                          className={`w-full h-full transform scale-100 group-hover:scale-105 duration-500 ease-out transition-all ${
+                            preserveProportions ? 'object-contain p-2' : 'object-cover'
+                          }`}
                           referrerPolicy="no-referrer"
                         />
                       </div>
@@ -1664,6 +1583,73 @@ export default function App() {
 
         </div>
       )}
+
+      {/* Battle History Log Section */}
+      <div id="battle-history-section" className="relative z-10 w-full max-w-4xl bg-slate-905/20 border border-slate-800/50 rounded-3xl p-6 mb-8 mt-12 shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-6 border-b border-slate-800/40 pb-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span>{t.historyTitle}</span>
+          </div>
+          {history.length > 0 && (
+            <button
+              id="clear-history-btn"
+              onClick={() => {
+                setHistory([]);
+                localStorage.removeItem('vs_battle_history');
+              }}
+              className="text-xs text-rose-450 hover:text-rose-400 font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer bg-slate-950/40 px-3 py-1.5 rounded-lg border border-slate-800/30"
+              title={t.clearHistory}
+            >
+              <span>{t.clearHistory}</span>
+            </button>
+          )}
+        </div>
+
+        {history.length === 0 ? (
+          <div className="bg-slate-950/20 py-8 px-4 rounded-2xl border border-dashed border-slate-850/80 text-center">
+            <p className="text-slate-500 text-xs md:text-sm font-medium">
+              {t.noHistory}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            {history.map((item) => (
+              <div
+                key={item.id}
+                className="p-4 bg-slate-950/45 border border-slate-850/80 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md text-slate-300"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1.5 flex flex-col sm:flex-row sm:items-center gap-1">
+                    <span>{t.historyQuestion}:</span>
+                    <span className="text-slate-300 font-bold normal-case text-xs">{item.question}</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:text-sm mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-400 font-black">🏆 {t.historyWinner}:</span>
+                      <span className="font-extrabold text-emerald-355 bg-emerald-550/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                        {item.winner}
+                      </span>
+                    </div>
+
+                    <div className="text-slate-600 max-md:hidden">•</div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-rose-450 font-bold">☠️ {item.losers.length > 1 ? t.historyDefeatedPlural : t.historyDefeated}:</span>
+                      {item.losers.map((loser, idx) => (
+                        <span key={idx} className="font-bold text-slate-300 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-md">
+                          {loser}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Footer credits design line */}
       <footer className="relative z-10 w-full max-w-4xl text-center border-t border-slate-800/60 pt-6 mt-auto text-xs text-slate-500/85 font-medium">

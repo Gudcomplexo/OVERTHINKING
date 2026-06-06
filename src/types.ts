@@ -30,3 +30,15 @@ export interface Terrain {
 }
 
 export type Language = 'it' | 'en';
+
+export type GameMode = 'controlled' | 'total_randomizer';
+
+export interface BattleHistoryItem {
+  id: string;
+  question: string;
+  winner: string;
+  losers: string[];
+  timestamp: string;
+}
+
+

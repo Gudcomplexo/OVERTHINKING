@@ -21,18 +21,30 @@ export const translations = {
     declareLabel: "Scegli chi vince!",
     loading: "Caricamento...",
     notesLabel: "Strategie & Appunti",
-    toggleRandomizer: "Total Randomizer 🎲",
+    toggleRandomizer: "ABSOLUT CAOS 🌪️",
     randomizerTooltip: "Genera tutto in tempo reale con Wikipedia totalmente a caso! Minimizza i tempi di ricerca tramite prefetching e caching.",
-    btnAiWinner: "Decreta Vincitore (IA)",
-    aiWinnerLoading: "L'IA sta decidendo...",
-    aiExplainTitle: "Verdetto dell'I.A.",
-    btnRandomQuestion: "Randomizza Domanda",
-    randomQuestionTooltip: "Cambia la domanda o lo scenario di scontro in modo casuale!"
+    
+    // Game Modes
+    selectModeLabel: "Modalità di Gioco",
+    modeControlled: "Modalità Controllata 🛡️",
+    modeTotalRandomizer: "ABSOLUT CAOS 🌪️",
+    descControlled: "Sfidanti, luoghi ed equipaggiamenti scelti dall'archivio curato. Divertente e bilanciato!",
+    descTotalRandomizer: "In tempo reale genera pagine completamente a caso da tutta Wikipedia, senza alcuna distinzione o logica.",
+
+    // History list keys
+    historyTitle: "Cronologia degli Scontri 🏆",
+    historyWinner: "Vincitore",
+    historyDefeated: "Sconfitto",
+    historyDefeatedPlural: "Sconfitti",
+    historyQuestion: "Sfida",
+    noHistory: "Ancora nessuna battaglia conclusa. Scegli un vincitore per registrare il risultato!",
+    clearHistory: "Cancella Cronologia 🗑️"
   },
   en: {
     title: "VS Battle Generator",
     subtitle: "Generate and simulate crazy battle scenarios using real-time content from Wikipedia.",
     btnGenerate: "Generate New Challenge",
+    btnApp: "VS Battle Generator",
     btnAdd: "Add Contender",
     btnReset: "Reset Game",
     toggleTerrain: "Include Terrain",
@@ -49,13 +61,24 @@ export const translations = {
     declareLabel: "Choose the winner!",
     loading: "Loading...",
     notesLabel: "Tactics & Notes",
-    toggleRandomizer: "Total Randomizer 🎲",
+    toggleRandomizer: "ABSOLUT CAOS 🌪️",
     randomizerTooltip: "Generates everything in real-time from random Wikipedia articles! Uses parallel prefetching and caching to minimize search times.",
-    btnAiWinner: "Decree Winner (AI)",
-    aiWinnerLoading: "AI is deciding...",
-    aiExplainTitle: "A.I. Verdict",
-    btnRandomQuestion: "Randomize Question",
-    randomQuestionTooltip: "Randomly cycle to another scenario or comparison question!"
+    
+    // Game Modes
+    selectModeLabel: "Game Mode",
+    modeControlled: "Controlled Mode 🛡️",
+    modeTotalRandomizer: "ABSOLUT CAOS 🌪️",
+    descControlled: "Contenders, terrains, and items chosen from a hand-picked curated pool. Balanced and fun!",
+    descTotalRandomizer: "Fetches random pages from all of Wikipedia in real-time with zero boundaries or logic.",
+
+    // History list keys
+    historyTitle: "Battle History & Wins 🏆",
+    historyWinner: "Winner",
+    historyDefeated: "Defeated",
+    historyDefeatedPlural: "Defeated",
+    historyQuestion: "Matchup",
+    noHistory: "No battles completed yet. Set a winner inside the game to log a victory!",
+    clearHistory: "Clear History 🗑️"
   }
 };
 
@@ -302,3 +325,67 @@ export const poolEquipment: Record<Language, string[]> = {
     "Lightsaber", "Frying_pan", "Mjöllnir", "Swiss_Army_knife", "Magic_wand", "Banana", "Flame-thrower", "Rope", "Fire_extinguisher", "Bow_and_arrow", "Grimoire", "Toaster", "Hammer", "Umbrella", "Lantern", "Shovel", "Compass", "Smartphone", "Skateboard", "Electric_guitar", "Dynamite", "Scissors", "Whip", "Megaphone", "Binoculars", "Backpack", "Sword", "Shield", "Club", "Spear", "Axe", "Crossbow", "Slingshot", "Catapult", "Cannon", "Rifle", "Pistol", "Grenade", "Bazooka", "Knife", "Katana", "Nunchaku", "Boomerang", "Tomahawk", "Chakram", "Kukri", "Scimitar", "Teapot", "Mirror", "Saw", "Alarm_clock", "Magnifying_glass", "Microscope", "Telescope", "Astrolabe", "Pocket_watch", "Hourglass", "Candle", "Lighter", "Flashlight"
   ]
 };
+
+export const poolCategories: Record<Language, { characters: string[]; terrains: string[]; equipment: string[] }> = {
+  it: {
+    characters: [
+      "Categoria:Imperatori_romani",
+      "Categoria:Filosofi_greci_antichi",
+      "Categoria:Persone_della_guerra_di_Troia",
+      "Categoria:Astronauti",
+      "Categoria:Pugili_italiani",
+      "Categoria:Personaggi_di_Harry_Potter",
+      "Categoria:Pirati",
+      "Categoria:Eroi_della_mitologia_greca",
+      "Categoria:Divinità_della_mitologia_greca"
+    ],
+    terrains: [
+      "Categoria:Vulcani",
+      "Categoria:Deserti",
+      "Categoria:Isole_dell'Oceano_Pacifico",
+      "Categoria:Castelli_d'Italia",
+      "Categoria:Laghi_dell'Italia",
+      "Categoria:Siti_archeologici_dell'Italia",
+      "Categoria:Grattacieli"
+    ],
+    equipment: [
+      "Categoria:Armi_bianche",
+      "Categoria:Utensili_da_cucina",
+      "Categoria:Strumenti_musicali",
+      "Categoria:Attrezzi",
+      "Categoria:Dispositivi_elettronici",
+      "Categoria:Strumenti_scientifici"
+    ]
+  },
+  en: {
+    characters: [
+      "Category:Roman_emperors",
+      "Category:Ancient_Greek_philosophers",
+      "Category:People_of_the_Trojan_War",
+      "Category:Astronauts",
+      "Category:Boxers",
+      "Category:Harry_Potter_characters",
+      "Category:Pirates",
+      "Category:Heroes_in_Greek_mythology",
+      "Category:Greek_deities"
+    ],
+    terrains: [
+      "Category:Active_volcanoes",
+      "Category:Deserts",
+      "Category:Islands_of_the_Pacific_Ocean",
+      "Category:Castles",
+      "Category:Lakes",
+      "Category:Archaeological_sites",
+      "Category:Skyscrapers"
+    ],
+    equipment: [
+      "Category:Blades",
+      "Category:Kitchenware",
+      "Category:Musical_instruments",
+      "Category:Tools",
+      "Category:Consumer_electronics",
+      "Category:Scientific_instruments"
+    ]
+  }
+};
+
